@@ -290,12 +290,12 @@ func sign(data []byte, key ed25519.PrivateKey) ([]byte, error){
 	return sig, nil
 }
 
-func loadKey(path string) (ed25519.PrivateKey){
+func loadKey(path string) (ed25519.PrivateKey, error){
 	privBytes, err := ioutil.ReadFile(path + "key.priv")
 	
 	if err != nil {
 		fmt.Println("No private key found")
-		return nil
+		return nil, err
 	}
 
 	block, _ := pem.Decode(privBytes)
@@ -304,13 +304,13 @@ func loadKey(path string) (ed25519.PrivateKey){
 	
 	if err != nil {
 		fmt.Printf("Error parsing key: %s", err.Error)
+		return nil, err
 	}
 
 	fmt.Printf("PRIV: %v", candidatePrivate)
 	priv := candidatePrivate.(ed25519.PrivateKey)
-
 	
-	return priv
+	return priv, nil
 }
 
 // @@TODO: configData should contain
@@ -326,13 +326,18 @@ func loadConfigData(config *Config) (*configData, error) {
 	var priv ed25519.PrivateKey = nil
 	var err error = nil
 	
-	priv = loadKey(path)
+	priv, err = loadKey(config.PrivateKeyPath)
 
+	if err != nil {
+		return nil, err
+	}
+	
 	finger := fingerprint() 
 	fmt.Printf("fingerprint: %x", finger)
 
 	if err != nil {
 		fmt.Printf("Error generating key: %s", err.Error)
+		return nil, err
 	}
 
 	if priv != nil {
@@ -354,8 +359,10 @@ func loadConfigData(config *Config) (*configData, error) {
 		}
 
 		return &configData{
-			privateKey:         certificate.PrivateKey,
+			privateKey:         priv,
 			attestationPayload: attestationPayload,
 		}, nil
 	}
+
+	return nil, err
 }
