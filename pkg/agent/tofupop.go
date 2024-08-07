@@ -1,20 +1,29 @@
 package tofupop
 
 import (
+	"fmt"
+	"net"
 	"context"
 	"crypto"
-	"crypto/tls"
 	"encoding/json"
-	"strings"
 	"sync"
-
+	"runtime"
+	"io/ioutil"
+	"os/user"
+	"encoding/pem"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/ed25519"
+	"crypto/x509"
+	
 	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/frumioj/spire-agent-tofu-plugin/pkg/common"
 )
 
 const (
@@ -34,6 +43,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 type configData struct {
 	privateKey         crypto.PrivateKey
 	attestationPayload []byte
+	// probably want to put a signed CSR in here one day
 }
 
 type Config struct {
@@ -306,27 +316,46 @@ func loadKey(path string) (ed25519.PrivateKey){
 // @@TODO: configData should contain
 // 1. File path to store private key if needed
 // 2. Items to include in a fingerprint of the device(?)
-// 
+// 3. A CSR signed with the generated key?
+
 func loadConfigData(config *Config) (*configData, error) {
 
 	// if the key at path exists then load the private key
 	// else create it at that path
 
+	var priv ed25519.PrivateKey = nil
+	var err error = nil
 	
-	fingerprint := fingerprint()
-	signature := sign(fingerprint)
-	
-	attestationPayload, err := json.Marshal(tofupop.AttestationData{
-		Fingerprint: fingerprint,
-		Signature: signature
-	})
-	
+	priv = loadKey(path)
+
+	finger := fingerprint() 
+	fmt.Printf("fingerprint: %x", finger)
+
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to marshal attestation data: %v", err)
+		fmt.Printf("Error generating key: %s", err.Error)
 	}
 
-	return &configData{
-		privateKey:         certificate.PrivateKey,
-		attestationPayload: attestationPayload,
-	}, nil
+	if priv != nil {
+		signature, err := sign(finger[:], priv)
+
+		if err != nil {
+			fmt.Printf("Signature failed for: %s\n", err.Error)
+		}
+		
+		fmt.Printf("Signed fingerprint: %x", signature)
+	
+		attestationPayload, err := json.Marshal(tofupop.AttestationData{
+			Fingerprint: finger,
+			Signature: signature,
+		})
+	
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to marshal attestation data: %v", err)
+		}
+
+		return &configData{
+			privateKey:         certificate.PrivateKey,
+			attestationPayload: attestationPayload,
+		}, nil
+	}
 }
