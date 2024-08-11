@@ -1,4 +1,4 @@
-package tofupop
+package agent
 
 import (
 	"fmt"
@@ -83,13 +83,13 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return err
 	}
 
-	challenge := new(tofupop.Challenge)
+	challenge := new(common.Challenge)
 	if err := json.Unmarshal(resp.Challenge, challenge); err != nil {
 		return status.Errorf(codes.Internal, "unable to unmarshal challenge: %v", err)
 	}
 
 	// calculate and send the challenge response
-	response, err := tofupop.CalculateResponse(data.privateKey, challenge)
+	response, err := common.CalculateResponse(data.privateKey, challenge)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to calculate challenge response: %v", err)
 	}
@@ -331,7 +331,7 @@ func loadConfigData(config *Config) (*configData, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	finger := fingerprint() 
 	fmt.Printf("fingerprint: %x", finger)
 
@@ -348,10 +348,17 @@ func loadConfigData(config *Config) (*configData, error) {
 		}
 		
 		fmt.Printf("Signed fingerprint: %x", signature)
-	
-		attestationPayload, err := json.Marshal(tofupop.AttestationData{
+
+		pub, err := x509.MarshalPKIXPublicKey(priv.Public())
+
+		if err != nil {
+			fmt.Printf("Could not get public key: %s\n", err.Error)
+		}
+		
+		attestationPayload, err := json.Marshal(common.AttestationData{
 			Fingerprint: finger,
 			Signature: signature,
+			PublicKey: pub,
 		})
 	
 		if err != nil {
