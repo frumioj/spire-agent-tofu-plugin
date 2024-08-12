@@ -1,8 +1,9 @@
-package x509pop
+package tofupop
 
 import (
 	"context"
 	"crypto/x509"
+	"crypto/ed25519"
 	"encoding/json"
 	"sync"
 
@@ -12,10 +13,11 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/frumioj/spire-agent-tofu-plugin/pkg/common"	
 )
 
 const (
@@ -73,41 +75,26 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Error(codes.InvalidArgument, "missing attestation payload")
 	}
 
-	attestationData := new(x509pop.AttestationData)
+	attestationData := new(common.AttestationData)
 	if err := json.Unmarshal(payload, attestationData); err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to unmarshal data: %v", err)
 	}
 
-	// build up leaf certificate and list of intermediates
-	if len(attestationData.Certificates) == 0 {
-		return status.Error(codes.InvalidArgument, "no certificate to attest")
-	}
-	leaf, err := x509.ParseCertificate(attestationData.Certificates[0])
-	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "unable to parse leaf certificate: %v", err)
-	}
-	intermediates := x509.NewCertPool()
-	for i, intermediateBytes := range attestationData.Certificates[1:] {
-		intermediate, err := x509.ParseCertificate(intermediateBytes)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "unable to parse intermediate certificate %d: %v", i, err)
-		}
-		intermediates.AddCert(intermediate)
-	}
+	candidatePubKey, err := x509.ParsePKIXPublicKey(attestationData.PublicKey)
 
-	// verify the chain of trust
-	chains, err := leaf.Verify(x509.VerifyOptions{
-		Intermediates: intermediates,
-		Roots:         config.trustBundle,
-		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
-	})
 	if err != nil {
-		return status.Errorf(codes.PermissionDenied, "certificate verification failed: %v", err)
+		return status.Errorf(codes.Internal, "unable to retrieve candidate pub key: %v", err)
 	}
-
-	// now that the leaf certificate is trusted, issue a challenge to the node
+	
+	// now that the public key is trusted, issue a challenge to the node
 	// to prove possession of the private key.
-	challenge, err := x509pop.GenerateChallenge(leaf)
+
+	// first cast it from any to the right type -- and hope that works? Perhaps need a switch here @@TODO
+	
+	pubkey := candidatePubKey.(*ed25519.PublicKey)
+	
+	challenge, err := common.GenerateChallenge(pubkey)
+	
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to generate challenge: %v", err)
 	}
@@ -131,16 +118,17 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return err
 	}
 
-	response := new(x509pop.Response)
+	response := new(common.Response)
 	if err := json.Unmarshal(responseReq.GetChallengeResponse(), response); err != nil {
 		return status.Errorf(codes.InvalidArgument, "unable to unmarshal challenge response: %v", err)
 	}
 
-	if err := x509pop.VerifyChallengeResponse(leaf.PublicKey, challenge, response); err != nil {
+	if err := common.VerifyChallengeResponse(candidatePubKey, challenge, response); err != nil {
 		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
 	}
 
-	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf)
+	// @@TODO: MakeAgentId needs to use the supplied public key to create a fingerprint for the ID or use the agent-supplied fingerprint hash
+	spiffeid, err := common.MakeAgentID(config.trustDomain, config.pathTemplate, leaf)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
@@ -180,7 +168,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, err
 	}
 
-	pathTemplate := x509pop.DefaultAgentPathTemplate
+	pathTemplate := common.DefaultAgentPathTemplate
 	if len(hclConfig.AgentPathTemplate) > 0 {
 		tmpl, err := agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
 		if err != nil {
@@ -251,7 +239,7 @@ func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) [
 	for _, chain := range chains {
 		// Iterate over all the certs in the chain (skip leaf at the 0 index)
 		for _, cert := range chain[1:] {
-			fp := x509pop.Fingerprint(cert)
+			fp := common.Fingerprint(cert)
 			// If the same fingerprint is generated, continue with the next certificate, because
 			// a selector should have been already created for it.
 			if _, ok := fingerprints[fp]; ok {
@@ -264,7 +252,7 @@ func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) [
 	}
 
 	if leaf.SerialNumber != nil {
-		serialNumberHex := x509pop.SerialNumberHex(leaf.SerialNumber)
+		serialNumberHex := common.SerialNumberHex(leaf.SerialNumber)
 		selectorValues = append(selectorValues, "serialnumber:"+serialNumberHex)
 	}
 
