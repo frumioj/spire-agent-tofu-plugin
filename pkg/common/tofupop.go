@@ -31,9 +31,7 @@ var DefaultAgentPathTemplate = agentpathtemplate.MustParse("/{{ .PluginName }}/{
 // 2. SHA of device fingerprint
 
 type agentPathTemplateData struct {
-	*x509.Certificate
-	SerialNumberHex string
-	Fingerprint     string
+	*ed25519.PublicKey
 	PluginName      string
 	TrustDomain     string
 }
@@ -189,18 +187,21 @@ func VerifyEDSignatureResponse(publicKey *ed25519.PublicKey, challenge *EDSignat
 	return nil
 }
 
-func Fingerprint(cert *x509.Certificate) string {
-	sum := sha1.Sum(cert.Raw) //nolint: gosec // SHA1 use is according to specification
+func Fingerprint(pubkey *ed25519.PublicKey) string {
+	b, err := x509.MarshalPKIXPublicKey(pubkey)
+	if err != nil {
+		fmt.Printf("error marshaling key to bytes: %s", err.Error)
+		return ""
+	}
+	sum := sha1.Sum(b) //nolint: gosec // SHA1 use is according to specification
 	return hex.EncodeToString(sum[:])
 }
 
 // MakeAgentID creates an agent ID from X.509 certificate data.
-func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, cert *x509.Certificate) (spiffeid.ID, error) {
+func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, pubKey *ed25519.PublicKey) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
-		Certificate:     cert,
+		PublicKey:     pubKey,
 		PluginName:      PluginName,
-		SerialNumberHex: SerialNumberHex(cert.SerialNumber),
-		Fingerprint:     Fingerprint(cert),
 	})
 	if err != nil {
 		return spiffeid.ID{}, err
