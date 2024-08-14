@@ -36,9 +36,7 @@ type agentPathTemplateData struct {
 	TrustDomain     string
 }
 
-// @@TODO: must change the attestation data to be a set of fingerprint
-// items for a server host
-// & signature over attested data
+// @@TODO: add CSR optionally?
 
 type AttestationData struct {
 	// fingerprint is some data captured from the node
