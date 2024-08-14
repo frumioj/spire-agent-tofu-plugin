@@ -1,6 +1,7 @@
-package tofupop
+package server
 
 import (
+	"fmt"
 	"context"
 	"crypto/x509"
 	"crypto/ed25519"
@@ -128,7 +129,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	// @@TODO: MakeAgentId needs to use the supplied public key to create a fingerprint for the ID or use the agent-supplied fingerprint hash
-	spiffeid, err := common.MakeAgentID(config.trustDomain, config.pathTemplate, leaf)
+	spiffeid, err := common.MakeAgentID(config.trustDomain, config.pathTemplate, pubkey)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
@@ -137,7 +138,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       spiffeid.String(),
-				SelectorValues: buildSelectorValues(leaf, chains),
+				SelectorValues: buildSelectorValues(pubkey),
 				CanReattest:    true,
 			},
 		},
@@ -227,34 +228,17 @@ func (p *Plugin) setConfiguration(config *configuration) {
 	p.config = config
 }
 
-func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) []string {
+func buildSelectorValues(pubkey *ed25519.PublicKey) []string {
 	var selectorValues []string
 
-	if leaf.Subject.CommonName != "" {
-		selectorValues = append(selectorValues, "subject:cn:"+leaf.Subject.CommonName)
-	}
+	fprint := common.Fingerprint(pubkey)
 
-	// Used to avoid duplicating selectors.
-	fingerprints := map[string]*x509.Certificate{}
-	for _, chain := range chains {
-		// Iterate over all the certs in the chain (skip leaf at the 0 index)
-		for _, cert := range chain[1:] {
-			fp := common.Fingerprint(cert)
-			// If the same fingerprint is generated, continue with the next certificate, because
-			// a selector should have been already created for it.
-			if _, ok := fingerprints[fp]; ok {
-				continue
-			}
-			fingerprints[fp] = cert
-
-			selectorValues = append(selectorValues, "ca:fingerprint:"+fp)
-		}
+	if fprint == "" {
+		fmt.Println("Could not fingerprint the public key!")
+		return nil
 	}
-
-	if leaf.SerialNumber != nil {
-		serialNumberHex := common.SerialNumberHex(leaf.SerialNumber)
-		selectorValues = append(selectorValues, "serialnumber:"+serialNumberHex)
-	}
+	
+	selectorValues = append(selectorValues, "subject:pk:"+fprint)
 
 	return selectorValues
 }
