@@ -157,7 +157,7 @@ func uid() (string){
 	usr, err := user.Current()
 
 	if err != nil {
-		fmt.Printf("Error returning UID: %v", err.Error)
+		fmt.Printf("Error returning UID: %v", err.Error())
 		return "0"
 	}
 	
@@ -196,7 +196,7 @@ func fingerprint() ([32]byte) {
 	output := ""
 	
 	if err != nil {
-		fmt.Printf("Error returning UID: %v\n", err.Error)
+		fmt.Printf("Error returning UID: %v\n", err.Error())
 	}
 	
 	uid = usr.Uid
@@ -283,7 +283,7 @@ func sign(data []byte, key ed25519.PrivateKey) ([]byte, error){
 	sig, err := key.Sign(nil, data, &ed25519.Options{Context: "SPIRE AGENT NODE ATTESTATION"})
 
 	if err != nil {
-		fmt.Printf("Signature failed: %s", err.Error)
+		fmt.Printf("Signature failed: %s", err.Error())
 		return nil, err
 	}
 
@@ -303,7 +303,7 @@ func loadKey(path string) (ed25519.PrivateKey, error){
 	candidatePrivate, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	
 	if err != nil {
-		fmt.Printf("Error parsing key: %s", err.Error)
+		fmt.Printf("Error parsing key: %s", err.Error())
 		return nil, err
 	}
 
@@ -336,7 +336,7 @@ func loadConfigData(config *Config) (*configData, error) {
 	fmt.Printf("fingerprint: %x", finger)
 
 	if err != nil {
-		fmt.Printf("Error generating key: %s", err.Error)
+		fmt.Printf("Error generating key: %s", err.Error())
 		return nil, err
 	}
 
@@ -344,7 +344,7 @@ func loadConfigData(config *Config) (*configData, error) {
 		signature, err := sign(finger[:], priv)
 
 		if err != nil {
-			fmt.Printf("Signature failed for: %s\n", err.Error)
+			fmt.Printf("Signature failed for: %s\n", err.Error())
 		}
 		
 		fmt.Printf("Signed fingerprint: %x", signature)
@@ -352,7 +352,7 @@ func loadConfigData(config *Config) (*configData, error) {
 		pub, err := x509.MarshalPKIXPublicKey(priv.Public())
 
 		if err != nil {
-			fmt.Printf("Could not get public key: %s\n", err.Error)
+			fmt.Printf("Could not get public key: %s\n", err.Error())
 		}
 		
 		attestationPayload, err := json.Marshal(common.AttestationData{
