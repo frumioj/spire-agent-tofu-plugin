@@ -1,4 +1,4 @@
-package agent_test
+package agent
 
 import (
 	"context"
@@ -8,13 +8,12 @@ import (
 	"github.com/spiffe/spire-plugin-sdk/plugintest"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-	"github.com/spiffe/spire-plugin-sdk/templates/agent/nodeattestor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test(t *testing.T) {
-	plugin := new(nodeattestor.Plugin)
+	plugin := New()
 	naClient := new(nodeattestorv1.NodeAttestorPluginClient)
 	configClient := new(configv1.ConfigServiceClient)
 
