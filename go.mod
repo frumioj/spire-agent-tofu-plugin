@@ -20,7 +20,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fatih/color v1.16.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
@@ -45,7 +45,6 @@ require (
 	github.com/uber-go/tally/v4 v4.1.16 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
